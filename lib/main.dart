@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ruta_este/screens/panel_conductor_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// Importamos las pantallas
+
+// === 1. IMPORTACIONES DE FIREBASE ===
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 import 'screens/login_screen.dart';
 import 'screens/mapa_screen.dart';
 import 'screens/reportar_screen.dart';
@@ -8,8 +13,25 @@ import 'screens/horarios_screen.dart';
 import 'screens/comunidad_screen.dart';
 
 void main() async {
+  // Asegura que los widgets nativos estén listos antes de llamar a Firebase
   WidgetsFlutterBinding.ensureInitialized();
+
+  // === 2. ENCENDEMOS LA CONEXIÓN CON LA NUBE ===
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint("🔥 Firebase conectado exitosamente 🔥");
+  } catch (e) {
+    debugPrint("Error conectando Firebase: $e");
+  }
+
+  // =======================================================
+  // MODO PRUEBAS: Borramos la memoria cada vez que se abre
+  // =======================================================
   final prefs = await SharedPreferences.getInstance();
+  await prefs.clear(); // <-- ESTA ES LA LÍNEA MÁGICA QUE BORRA TU SESIÓN ANTERIOR
+
   final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
 
   runApp(BusCheckApp(isLoggedIn: isLoggedIn));
@@ -30,8 +52,26 @@ class BusCheckApp extends StatelessWidget {
         primaryColor: const Color(0xFFFB923C),
         useMaterial3: true,
       ),
-      // Si estamos logueados, vamos directamente al mapa, si no, al Login
-      home: isLoggedIn ? const MainNavigationScreen() : const LoginScreen(),
+      home: _pantallaInicial(),
+    );
+  }
+
+  // Función que decide a dónde llevarte según tu rol
+  Widget _pantallaInicial() {
+    if (!isLoggedIn) return const LoginScreen();
+
+    return FutureBuilder<SharedPreferences>(
+      future: SharedPreferences.getInstance(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+        final rol = snapshot.data!.getString('rol') ?? 'pasajero';
+        if (rol == 'conductor') {
+          return const PanelConductorScreen();
+        } else {
+          return const MainNavigationScreen();
+        }
+      },
     );
   }
 }

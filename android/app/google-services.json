@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "512010837881",
+    "project_id": "ruta-este",
+    "storage_bucket": "ruta-este.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:512010837881:android:f0ed88c8babbbaa37459a8",
+        "android_client_info": {
+          "package_name": "com.example.ruta_este"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCINJPmbRmH4Je3_y95roKL95iUurYRcJk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

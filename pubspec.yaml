@@ -39,6 +39,9 @@ dependencies:
   latlong2: ^0.9.1
   location: ^8.0.1
   shared_preferences: ^2.5.5
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.4
+  cloud_firestore: ^6.6.0
     # location: ^6.0.2  <-- Pausaremos esta para GPS real luego
 
 dev_dependencies:
