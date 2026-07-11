@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart' as loc;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // <-- NUEVO: Para la base de datos
 import 'login_screen.dart';
 
 class PanelConductorScreen extends StatefulWidget {
@@ -18,8 +19,10 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
   final loc.Location _locationService = loc.Location();
   LatLng? _currentLocation;
 
-  // Interruptor que controlará si mandamos datos a Firebase o no
   bool _isTransmitting = false;
+
+  // Obtenemos los datos del conductor logueado actualmente
+  final User? _conductor = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
@@ -27,7 +30,6 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
     _iniciarGPS();
   }
 
-  // Iniciamos el hardware del GPS igual que en la pantalla del pasajero
   Future<void> _iniciarGPS() async {
     bool serviceEnabled;
     loc.PermissionStatus permissionGranted;
@@ -44,6 +46,14 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
       if (!serviceEnabled) return;
     }
 
+    // NUEVO: Configuramos el GPS para que se actualice cada 5 segundos o cada 5 metros
+    // Esto evita saturar los servidores de Firebase
+    await _locationService.changeSettings(
+      accuracy: loc.LocationAccuracy.high,
+      interval: 5000,
+      distanceFilter: 5,
+    );
+
     try {
       final locData = await _locationService.getLocation();
       if (mounted && locData.latitude != null && locData.longitude != null) {
@@ -56,14 +66,59 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
       debugPrint("Error obteniendo ubicación: $e");
     }
 
+    // ESCUCHAMOS EL MOVIMIENTO DEL CONDUCTOR
     _locationService.onLocationChanged.listen((locData) {
       if (mounted && locData.latitude != null && locData.longitude != null) {
+        final nuevaPosicion = LatLng(locData.latitude!, locData.longitude!);
+
         setState(() {
-          _currentLocation = LatLng(locData.latitude!, locData.longitude!);
+          _currentLocation = nuevaPosicion;
         });
+
+        // MAGIA: Si está transmitiendo, mandamos esta nueva posición a la nube
+        if (_isTransmitting) {
+          _actualizarUbicacionEnFirestore(nuevaPosicion);
+        }
       }
     });
   }
+
+  // ==========================================
+  // FUNCIONES DE FIREBASE
+  // ==========================================
+
+  Future<void> _actualizarUbicacionEnFirestore(LatLng posicion) async {
+    if (_conductor == null) return;
+
+    try {
+      // .set() creará el documento si no existe, o lo actualizará si ya existe
+      await FirebaseFirestore.instance.collection('buses_activos').doc(_conductor!.uid).set({
+        'id_conductor': _conductor!.uid,
+        'titulo': 'Bus ${_conductor!.email?.split('@').first ?? 'Activo'}', // Usa parte de su correo como nombre
+        'ruta': 'Ruta: Carretera Central',
+        'estado': 'ASIENTOS LIBRES',
+        'capacidad': 'Asientos libres',
+        'tiempo_estimado': 'En camino',
+        'color': 0xFF10B981, // Verde por defecto
+        'posicion': GeoPoint(posicion.latitude, posicion.longitude), // Formato de mapa de Firebase
+        'ultima_actualizacion': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint("Error subiendo a Firestore: $e");
+    }
+  }
+
+  Future<void> _eliminarBusDeFirestore() async {
+    if (_conductor == null) return;
+    try {
+      // Borramos el documento para que desaparezca de los mapas de los pasajeros
+      await FirebaseFirestore.instance.collection('buses_activos').doc(_conductor!.uid).delete();
+    } catch (e) {
+      debugPrint("Error eliminando de Firestore: $e");
+    }
+  }
+
+  // ==========================================
 
   void _centrarUbicacion() {
     if (_currentLocation != null) {
@@ -72,6 +127,11 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
   }
 
   void _cerrarSesion() async {
+    // Si estaba transmitiendo, borramos su bus antes de salir
+    if (_isTransmitting) {
+      await _eliminarBusDeFirestore();
+    }
+
     await FirebaseAuth.instance.signOut();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
@@ -81,22 +141,23 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
     }
   }
 
-  // Función para encender o apagar el GPS hacia la nube
   void _toggleTransmision() {
     setState(() {
       _isTransmitting = !_isTransmitting;
     });
 
     if (_isTransmitting) {
+      if (_currentLocation != null) {
+        _actualizarUbicacionEnFirestore(_currentLocation!);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Transmisión iniciada. Los pasajeros ahora pueden verte.'), backgroundColor: Colors.green),
       );
-      // Aquí agregaremos la lógica para subir a Firestore más adelante
     } else {
+      _eliminarBusDeFirestore();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Transmisión detenida. Ya no apareces en el mapa.'), backgroundColor: Colors.redAccent),
       );
-      // Aquí agregaremos la lógica para borrar el bus de Firestore
     }
   }
 
@@ -105,9 +166,7 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // ==========================================
           // 1. EL MAPA DE FONDO
-          // ==========================================
           FlutterMap(
             mapController: _mapController,
             options: const MapOptions(
@@ -121,7 +180,6 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
                 userAgentPackageName: 'com.fabian.rutaeste',
               ),
 
-              // El marcador de ubicación del conductor
               if (_currentLocation != null)
                 MarkerLayer(
                   markers: [
@@ -131,7 +189,6 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Cambia de color a Verde cuando transmite y Azul cuando no
                           Container(
                               width: 40, height: 40,
                               decoration: BoxDecoration(
@@ -154,16 +211,13 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
             ],
           ),
 
-          // ==========================================
           // 2. BOTONES SUPERIORES FLOTANTES
-          // ==========================================
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Tarjeta indicadora de estado
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
@@ -183,7 +237,6 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
                     ),
                   ),
 
-                  // Botón de Cerrar Sesión
                   Container(
                     decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]),
                     child: IconButton(icon: const Icon(Icons.logout, color: Colors.black87), onPressed: _cerrarSesion),
@@ -193,7 +246,7 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
             ),
           ),
 
-          // Botón para centrar GPS
+          // BOTÓN CENTRAR GPS
           Positioned(
             bottom: 180, right: 16,
             child: Container(
@@ -202,9 +255,7 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
             ),
           ),
 
-          // ==========================================
-          // 3. PANEL INFERIOR (CONTROLES DE TRANSMISIÓN)
-          // ==========================================
+          // 3. PANEL INFERIOR (CONTROLES)
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
@@ -247,7 +298,6 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // BOTÓN GIGANTE
                   SizedBox(
                     width: double.infinity,
                     height: 56,
