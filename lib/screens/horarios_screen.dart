@@ -7,99 +7,142 @@ class HorariosScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24.0, 10.0, 24.0, 24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Rutas e Intervalos', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
-            const SizedBox(height: 4),
-            Text('Basado en reportes de los últimos 15 min.', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-            const SizedBox(height: 24),
-
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Busca tu ruta o paradero...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            _buildRouteCard(routeNumber: '5401', routeName: 'Chosica - Lima', frequency: 'Frecuencia: 3-5 min', statusText: 'FLUIDO', statusColor: const Color(0xFF10B981)),
-            _buildRouteCard(routeNumber: '4502', routeName: 'Huaycán - Abancay', frequency: 'Frecuencia: 10 min', statusText: 'LENTO', statusColor: const Color(0xFFF97316)),
-            _buildRouteCard(routeNumber: '4408', routeName: 'Chaclacayo - Grau', frequency: 'Frecuencia: 8 min', statusText: 'FLUIDO', statusColor: const Color(0xFF10B981)),
-            const SizedBox(height: 16),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: const Color(0xFF2563EB), borderRadius: BorderRadius.circular(16)),
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 10.0),
+            sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('¿Prefieres un Colectivo?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      Icon(Icons.send, color: Colors.white),
-                    ],
+                  const Text('Horarios y Rutas', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
+                  const SizedBox(height: 8),
+                  Text('Planifica tu viaje por la Carretera Central.', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+                  const SizedBox(height: 24),
+
+                  // TARJETA DE HORARIO GENERAL
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1F2937), // Azul muy oscuro casi negro
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time_filled, color: Color(0xFFFB923C), size: 40),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Horario de Operación', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text('Lunes a Domingo\n5:00 AM - 11:30 PM', style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Text('Hemos detectado alta demanda en Carretera Central. Los colectivos están saliendo cada 2 min desde el Puente Santa Anita.', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14, height: 1.4)),
+                  const SizedBox(height: 30),
+                  const Text('Paraderos Principales (Hacia Lima)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
+                  const SizedBox(height: 16),
                 ],
               ),
-            )
-          ],
-        ),
+            ),
+          ),
+
+          // LISTA DE PARADEROS (TIMELINE)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildParadero(tiempo: '0 min', titulo: 'Chosica (Parque Echenique)', subtitulo: 'Paradero Inicial', isFirst: true),
+                _buildParadero(tiempo: '25 min', titulo: 'Entrada de Huaycán', subtitulo: 'Paradero Intermedio'),
+                _buildParadero(tiempo: '45 min', titulo: 'UTP Sede Ate', subtitulo: 'Zona Universitaria / Real Plaza'),
+                _buildParadero(tiempo: '60 min', titulo: 'Óvalo Santa Anita', subtitulo: 'Conexión Evitamiento'),
+                _buildParadero(tiempo: '90 min', titulo: 'Centro de Lima (Grau)', subtitulo: 'Paradero Final', isLast: true),
+              ]),
+            ),
+          ),
+
+          const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
+        ],
       ),
     );
   }
 
-  Widget _buildRouteCard({required String routeNumber, required String routeName, required String frequency, required String statusText, required Color statusColor}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 4))]
-      ),
+  // WIDGET PERSONALIZADO PARA CREAR LA "LÍNEA DE TIEMPO"
+  Widget _buildParadero({required String tiempo, required String titulo, required String subtitulo, bool isFirst = false, bool isLast = false}) {
+    return IntrinsicHeight(
       child: Row(
         children: [
-          Container(
-            width: 50, height: 50,
-            decoration: BoxDecoration(color: const Color(0xFF1F2937), borderRadius: BorderRadius.circular(12)),
-            child: Center(child: Text(routeNumber, style: const TextStyle(color: Color(0xFFF97316), fontWeight: FontWeight.bold, fontSize: 16))),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+          // 1. DIBUJO DE LA LÍNEA Y EL CÍRCULO
+          SizedBox(
+            width: 30,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(routeName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
-                    const SizedBox(width: 4),
-                    Text(frequency, style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-                  ],
+                Container(
+                  width: 3, height: 20,
+                  color: isFirst ? Colors.transparent : const Color(0xFFFB923C),
+                ),
+                Container(
+                  width: 16, height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFFB923C), width: 4),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    width: 3,
+                    color: isLast ? Colors.transparent : const Color(0xFFFB923C),
+                  ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-            child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
-          )
+          const SizedBox(width: 16),
+
+          // 2. CAJA DE TEXTO DEL PARADERO
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                          const SizedBox(height: 4),
+                          Text(subtitulo, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFFB923C).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8)
+                      ),
+                      child: Text(tiempo, style: const TextStyle(color: Color(0xFF9A3412), fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

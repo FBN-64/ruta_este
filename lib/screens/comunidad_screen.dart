@@ -49,11 +49,17 @@ class _ComunidadScreenState extends State<ComunidadScreen> {
           // LISTA EN TIEMPO REAL DESDE FIREBASE
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
+              // 👇 AQUÍ ESTÁ EL CAMBIO: Quitamos el .where()
               stream: FirebaseFirestore.instance.collection('usuarios')
-                  .where('rol', isEqualTo: 'pasajero')
-                  .orderBy('puntos', descending: true) // Ordena de mayor a menor
+                  .orderBy('puntos', descending: true) // Solo dejamos el ordenamiento
                   .snapshots(),
               builder: (context, snapshot) {
+
+                // Agregamos esto para ver si Firebase nos manda algún otro error
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error de Firebase: ${snapshot.error}'));
+                }
+
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: Color(0xFFFB923C)));
                 }
