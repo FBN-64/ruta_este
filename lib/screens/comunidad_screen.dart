@@ -1,121 +1,141 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class ComunidadScreen extends StatelessWidget {
+class ComunidadScreen extends StatefulWidget {
   const ComunidadScreen({super.key});
 
   @override
+  State<ComunidadScreen> createState() => _ComunidadScreenState();
+}
+
+class _ComunidadScreenState extends State<ComunidadScreen> {
+  String _miCorreo = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarMiCorreo();
+  }
+
+  // Leemos de la memoria quiénes somos para resaltar nuestro nombre en el ranking
+  Future<void> _cargarMiCorreo() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _miCorreo = prefs.getString('correo_usuario') ?? '';
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24.0, 10.0, 24.0, 24.0),
-      child: Column(
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Comunidad', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
-                  const SizedBox(height: 4),
-                  Text('Cuidándonos en la Carretera Central', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(color: Color(0xFFFFF7ED), shape: BoxShape.circle),
-                child: const Icon(Icons.workspace_premium, color: Color(0xFFF97316), size: 28),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-                color: const Color(0xFF1F2937),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5))]
-            ),
+          // CABECERA
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 10.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('TU IMPACTO', style: TextStyle(color: Color(0xFFF97316), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                const Text('Ranking de Viajeros', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
                 const SizedBox(height: 8),
-                RichText(
-                  text: const TextSpan(
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    children: [
-                      TextSpan(text: 'Level 4 ', style: TextStyle(color: Colors.white)),
-                      TextSpan(text: 'Ruta-Master', style: TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    _buildStatBox('REPORTES', '128'),
-                    const SizedBox(width: 12),
-                    _buildStatBox('AHORRO TIEMPO', '14h'),
-                  ],
-                ),
+                Text('Los estudiantes que más ayudan a la comunidad.', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
               ],
             ),
           ),
-          const SizedBox(height: 30),
 
-          const Row(
-            children: [
-              Icon(Icons.trending_up, color: Color(0xFFF97316)),
-              SizedBox(width: 8),
-              Text('Top Colaboradores', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
-            ],
+          // LISTA EN TIEMPO REAL DESDE FIREBASE
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('usuarios')
+                  .where('rol', isEqualTo: 'pasajero')
+                  .orderBy('puntos', descending: true) // Ordena de mayor a menor
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFFFB923C)));
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('Aún no hay viajeros en el ranking.'));
+                }
+
+                final usuarios = snapshot.data!.docs;
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
+                  itemCount: usuarios.length,
+                  itemBuilder: (context, index) {
+                    final data = usuarios[index].data() as Map<String, dynamic>;
+
+                    final esMiPerfil = data['correo'] == _miCorreo;
+                    final puntos = data['puntos'] ?? 0;
+                    final alias = data['alias'] ?? 'Usuario';
+
+                    return _buildRankingCard(
+                      posicion: index + 1,
+                      alias: alias,
+                      puntos: puntos,
+                      esMiPerfil: esMiPerfil,
+                    );
+                  },
+                );
+              },
+            ),
           ),
-          const SizedBox(height: 20),
-
-          _buildTopUserRow(rank: 1, name: 'Carlos M.', points: '2,450 pts', isFirst: true),
-          _buildTopUserRow(rank: 2, name: 'Andrea L.', points: '2,120 pts', isFirst: false),
-          _buildTopUserRow(rank: 3, name: 'Juan P.', points: '1,980 pts', isFirst: false),
         ],
       ),
     );
   }
 
-  Widget _buildStatBox(String title, String value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(color: const Color(0xFF374151), borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildRankingCard({required int posicion, required String alias, required int puntos, required bool esMiPerfil}) {
+    // Colores especiales de medallas para el Top 3
+    Color colorMedalla;
+    if (posicion == 1) colorMedalla = const Color(0xFFFFD700); // Oro
+    else if (posicion == 2) colorMedalla = const Color(0xFFC0C0C0); // Plata
+    else if (posicion == 3) colorMedalla = const Color(0xFFCD7F32); // Bronce
+    else colorMedalla = Colors.grey[400]!;
 
-  Widget _buildTopUserRow({required int rank, required String name, required String points, required bool isFirst}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: esMiPerfil ? const Color(0xFFFFF7ED) : Colors.grey[50], // Resalta tu perfil en naranja claro
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: esMiPerfil ? const Color(0xFFFB923C) : Colors.grey[200]!, width: esMiPerfil ? 2 : 1),
+      ),
       child: Row(
         children: [
-          SizedBox(
-            width: 30,
-            child: Text('#$rank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isFirst ? const Color(0xFFF97316) : Colors.grey[400])),
-          ),
+          // Número y Medalla
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.image_outlined, color: Colors.grey),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: colorMedalla.withValues(alpha: 0.2), shape: BoxShape.circle),
+            child: Text('#$posicion', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: posicion <= 3 ? colorMedalla : Colors.grey[700])),
           ),
           const SizedBox(width: 16),
-          Expanded(child: Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black))),
-          Text(points, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[600])),
+
+          // Nombre y etiqueta
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(alias, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: esMiPerfil ? const Color(0xFF9A3412) : Colors.black)),
+                if (esMiPerfil) const Text('¡Este eres tú!', style: TextStyle(fontSize: 12, color: Color(0xFFFB923C), fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+
+          // Puntos
+          Row(
+            children: [
+              const Icon(Icons.star_rounded, color: Color(0xFFFB923C), size: 20),
+              const SizedBox(width: 4),
+              Text('$puntos pts', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          )
         ],
       ),
     );

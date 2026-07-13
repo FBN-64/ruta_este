@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <-- Para conectarnos a la base de datos
-import 'package:firebase_auth/firebase_auth.dart';     // <-- Para saber quién envía el reporte
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- Para saber quién es el pasajero
 
 class ReportarScreen extends StatefulWidget {
   const ReportarScreen({super.key});
@@ -13,13 +13,10 @@ class _ReportarScreenState extends State<ReportarScreen> {
   int _faseReporte = 0;
   String _reporteSeleccionado = '';
 
-  // Variables para saber qué bus seleccionó el usuario
   String? _busSeleccionadoId;
   String? _busSeleccionadoTitulo;
 
-  // NUEVA FUNCIÓN CONECTADA A FIREBASE
   void _enviarReporte(String titulo, String capacidad, int colorHex) async {
-    // 1. Validamos que haya seleccionado un bus
     if (_busSeleccionadoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Por favor, selecciona un bus de la lista primero.'), backgroundColor: Colors.redAccent)
@@ -27,14 +24,13 @@ class _ReportarScreenState extends State<ReportarScreen> {
       return;
     }
 
-    // 2. Mostramos la pantalla de carga
     setState(() {
       _reporteSeleccionado = titulo;
       _faseReporte = 1;
     });
 
     try {
-      // 3. Actualizamos el estado y el color del bus en tiempo real
+      // 1. Actualizamos el estado del bus en el mapa
       await FirebaseFirestore.instance.collection('buses_activos').doc(_busSeleccionadoId).update({
         'estado': titulo,
         'capacidad': capacidad,
@@ -42,17 +38,26 @@ class _ReportarScreenState extends State<ReportarScreen> {
         'ultima_actualizacion': FieldValue.serverTimestamp(),
       });
 
-      // 4. Guardamos un historial del reporte (útil para dar puntos después)
-      final user = FirebaseAuth.instance.currentUser;
+      // 2. Leemos la memoria del celular para saber quién es el pasajero
+      final prefs = await SharedPreferences.getInstance();
+      final correoPasajero = prefs.getString('correo_usuario') ?? 'anonimo';
+
+      // 3. Guardamos el historial del reporte
       await FirebaseFirestore.instance.collection('reportes').add({
         'bus_id': _busSeleccionadoId,
         'bus_titulo': _busSeleccionadoTitulo,
         'estado_reportado': titulo,
-        'usuario_id': user?.uid ?? 'anonimo',
+        'usuario_correo': correoPasajero,
         'fecha_hora': FieldValue.serverTimestamp(),
       });
 
-      // 5. Mostramos la pantalla de éxito
+      // 4. MAGIA DE COMUNIDAD: ¡Le sumamos 10 puntos al pasajero!
+      if (correoPasajero != 'anonimo') {
+        await FirebaseFirestore.instance.collection('usuarios').doc(correoPasajero).update({
+          'puntos': FieldValue.increment(10) // <-- Esto suma +10 en Firebase automáticamente
+        });
+      }
+
       if (mounted) {
         setState(() {
           _faseReporte = 2;
@@ -90,7 +95,6 @@ class _ReportarScreenState extends State<ReportarScreen> {
   }
 
   Widget _construirVistaActual() {
-    // PANTALLA 1: CARGANDO
     if (_faseReporte == 1) {
       return Center(
         child: Column(
@@ -104,7 +108,6 @@ class _ReportarScreenState extends State<ReportarScreen> {
           ],
         ),
       );
-      // PANTALLA 2: ÉXITO
     } else if (_faseReporte == 2) {
       return Center(
         child: Column(
@@ -117,6 +120,8 @@ class _ReportarScreenState extends State<ReportarScreen> {
             ),
             const SizedBox(height: 24),
             const Text('¡Reporte exitoso!', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black)),
+            const SizedBox(height: 10),
+            const Text('+10 Puntos de Viajero', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFFB923C))),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
@@ -146,7 +151,6 @@ class _ReportarScreenState extends State<ReportarScreen> {
       );
     }
 
-    // PANTALLA 0: FORMULARIO INICIAL
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -155,9 +159,6 @@ class _ReportarScreenState extends State<ReportarScreen> {
         Text('Tu reporte ayuda a miles de estudiantes a decidir su viaje.', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
         const SizedBox(height: 24),
 
-        // ==========================================
-        // NUEVO: SELECTOR DE BUS DESDE FIREBASE
-        // ==========================================
         const Text('¿Qué bus estás viendo?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 8),
         StreamBuilder<QuerySnapshot>(
@@ -200,7 +201,6 @@ class _ReportarScreenState extends State<ReportarScreen> {
                     onChanged: (value) {
                       setState(() {
                         _busSeleccionadoId = value;
-                        // Guardamos el título para mostrarlo en la pantalla de éxito
                         final busDoc = buses.firstWhere((b) => b.id == value);
                         _busSeleccionadoTitulo = (busDoc.data() as Map<String, dynamic>)['titulo'];
                       });
@@ -213,7 +213,6 @@ class _ReportarScreenState extends State<ReportarScreen> {
 
         const SizedBox(height: 24),
 
-        // BOTONES DE REPORTE (AQUÍ LE PASAMOS LOS CÓDIGOS DE COLOR HEXADECIMAL)
         _buildReportCard(color: const Color(0xFF10B981), icon: Icons.people_outline, title: 'Asientos libres', subtitle: 'Hay espacio para sentarse', colorHex: 0xFF10B981),
         const SizedBox(height: 16),
         _buildReportCard(color: const Color(0xFFF97316), icon: Icons.people_outline, title: 'Pocos sitios', subtitle: 'Gente parada, pero se puede subir', colorHex: 0xFFF97316),

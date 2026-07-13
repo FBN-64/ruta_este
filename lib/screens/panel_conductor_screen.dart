@@ -21,8 +21,7 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
 
   bool _isTransmitting = false;
 
-  // Obtenemos los datos del conductor logueado actualmente
-  final User? _conductor = FirebaseAuth.instance.currentUser;
+
 
   @override
   void initState() {
@@ -84,37 +83,45 @@ class _PanelConductorScreenState extends State<PanelConductorScreen> {
   }
 
   // ==========================================
-  // FUNCIONES DE FIREBASE
+  // FUNCIONES DE FIREBASE CORREGIDAS
   // ==========================================
 
   Future<void> _actualizarUbicacionEnFirestore(LatLng posicion) async {
-    if (_conductor == null) return;
+    // Pedimos el usuario justo en este momento
+    final conductorActual = FirebaseAuth.instance.currentUser;
+
+    if (conductorActual == null) {
+      debugPrint("⛔ ERROR: Firebase Auth aún no carga al usuario.");
+      return;
+    }
 
     try {
-      // .set() creará el documento si no existe, o lo actualizará si ya existe
-      await FirebaseFirestore.instance.collection('buses_activos').doc(_conductor!.uid).set({
-        'id_conductor': _conductor!.uid,
-        'titulo': 'Bus ${_conductor!.email?.split('@').first ?? 'Activo'}', // Usa parte de su correo como nombre
+      await FirebaseFirestore.instance.collection('buses_activos').doc(conductorActual.uid).set({
+        'id_conductor': conductorActual.uid,
+        'titulo': 'Bus ${conductorActual.email?.split('@').first ?? 'Activo'}',
         'ruta': 'Ruta: Carretera Central',
         'estado': 'ASIENTOS LIBRES',
         'capacidad': 'Asientos libres',
         'tiempo_estimado': 'En camino',
-        'color': 0xFF10B981, // Verde por defecto
-        'posicion': GeoPoint(posicion.latitude, posicion.longitude), // Formato de mapa de Firebase
+        'color': 0xFF10B981,
+        'posicion': GeoPoint(posicion.latitude, posicion.longitude),
         'ultima_actualizacion': FieldValue.serverTimestamp(),
       });
+      debugPrint("✅ DATO SUBIDO A FIREBASE CORRECTAMENTE");
     } catch (e) {
-      debugPrint("Error subiendo a Firestore: $e");
+      debugPrint("⛔ Error subiendo a Firestore: $e");
     }
   }
 
   Future<void> _eliminarBusDeFirestore() async {
-    if (_conductor == null) return;
+    final conductorActual = FirebaseAuth.instance.currentUser;
+    if (conductorActual == null) return;
+
     try {
-      // Borramos el documento para que desaparezca de los mapas de los pasajeros
-      await FirebaseFirestore.instance.collection('buses_activos').doc(_conductor!.uid).delete();
+      await FirebaseFirestore.instance.collection('buses_activos').doc(conductorActual.uid).delete();
+      debugPrint("🗑️ BUS ELIMINADO DE FIREBASE");
     } catch (e) {
-      debugPrint("Error eliminando de Firestore: $e");
+      debugPrint("⛔ Error eliminando de Firestore: $e");
     }
   }
 

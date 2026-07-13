@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // <-- AGREGADO PARA FIREBASE AUTH
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../main.dart';
 import 'panel_conductor_screen.dart'; // <-- AGREGADO PARA LA NUEVA RUTA
 
@@ -32,12 +32,35 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', true);
-    await prefs.setString('rol', 'pasajero'); // <-- GUARDAMOS EL ROL
+    setState(() => _isLoading = true);
 
-    if (mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainNavigationScreen()));
+    try {
+      // 1. Guardamos el perfil en Firebase usando su correo como ID
+      await FirebaseFirestore.instance.collection('usuarios').doc(correo).set({
+        'correo': correo,
+        'alias': alias,
+        'rol': 'pasajero',
+      }, SetOptions(merge: true)); // 'merge: true' evita que se borre si ya existía
+
+      // 2. Le asignamos 0 puntos iniciales solo si es un usuario nuevo
+      final docSnapshot = await FirebaseFirestore.instance.collection('usuarios').doc(correo).get();
+      if (!docSnapshot.data()!.containsKey('puntos')) {
+        await FirebaseFirestore.instance.collection('usuarios').doc(correo).update({'puntos': 0});
+      }
+
+      // 3. Guardamos la sesión en el celular
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('rol', 'pasajero');
+      await prefs.setString('correo_usuario', correo); // <-- Recordamos quién es
+
+      if (mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainNavigationScreen()));
+      }
+    } catch (e) {
+      _mostrarError('Error al conectar con la base de datos.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
